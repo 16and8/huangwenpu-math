@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>黄文普 - 跳跳乐</title>
+<style>
+* {
+margin: 0;
+padding: 0;
+box-sizing: border-box;
+font-family: "微软雅黑", sans-serif;
+}
+body {
+overflow: hidden;
+background: #87CEEB;
+}
+#gameBox {
+width: 100vw;
+height: 100vh;
+position: relative;
+}
+#player {
+width: 40px;
+height: 40px;
+background: #ff6b6b;
+border-radius: 8px;
+position: absolute;
+bottom: 150px;
+left: 100px;
+}
+.platform {
+position: absolute;
+background: #4CAF50;
+border-radius: 4px;
+}
+.info {
+position: absolute;
+top: 20px;
+left: 20px;
+font-size: 22px;
+color: #fff;
+text-shadow: 2px 2px 4px #333;
+z-index: 10;
+}
+.modal {
+position: absolute;
+top: 50%;
+left: 50%;
+transform: translate(-50%, -50%);
+background: #fff;
+padding: 30px 50px;
+border-radius: 12px;
+text-align: center;
+box-shadow: 0 0 20px rgba(0,0,0,0.3);
+z-index: 20;
+}
+.modal h2 {
+color: #333;
+margin-bottom: 20px;
+}
+.modal button {
+padding: 10px 25px;
+font-size: 18px;
+background: #2196F3;
+color: #fff;
+border: none;
+border-radius: 6px;
+cursor: pointer;
+}
+.hide {
+display: none;
+}
+</style>
+</head>
+<body>
+<div id="gameBox">
+<div class="info">
+玩家：黄文普 <br>
+分数：<span id="score">0</span>
+</div>
+<div id="player"></div>
+<div class="modal" id="startModal">
+<h2>黄文普 跳跳乐</h2>
+<p>按 空格键 / 点击屏幕 跳跃</p>
+<br>
+<button id="startBtn">开始游戏</button>
+</div>
+<div class="modal hide" id="overModal">
+<h2>游戏结束</h2>
+<p>最终分数：<span id="finalScore">0</span></p>
+<br>
+<button id="restartBtn">重新开始</button>
+</div>
+</div>
+<script>
+const gameBox = document.getElementById('gameBox');
+const player = document.getElementById('player');
+const scoreDom = document.getElementById('score');
+const finalScoreDom = document.getElementById('finalScore');
+const startModal = document.getElementById('startModal');
+const overModal = document.getElementById('overModal');
+const startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restartBtn');
+let gameRun = false;
+let score = 0;
+let playerY = 150;
+let playerVy = 0;
+const gravity = 0.6;
+const jumpForce = -14;
+let isJump = false;
+let platforms = [];
+const platformSpeed = 3;
+function initPlatform() {
+platforms = [];
+for(let i = 0; i < 8; i++) {
+createPlatform(150 + i * 180);
+}
+}
+function createPlatform(x) {
+const p = document.createElement('div');
+p.className = 'platform';
+const w = 80 + Math.random() * 60;
+const h = 16;
+const y = window.innerHeight - 80 - Math.random() * 120;
+p.style.width = w + 'px';
+p.style.height = h + 'px';
+p.style.left = x + 'px';
+p.style.bottom = y + 'px';
+gameBox.appendChild(p);
+platforms.push({dom: p, x, y, w});
+}
+function jump() {
+if(!isJump && gameRun) {
+playerVy = jumpForce;
+isJump = true;
+}
+}
+function checkCollision() {
+const pLeft = player.offsetLeft;
+const pRight = pLeft + 40;
+const pBottom = window.innerHeight - playerY;
+for(let item of platforms) {
+const platLeft = item.x;
+const platRight = item.x + item.w;
+const platTop = window.innerHeight - item.y - 16;
+if(playerVy > 0
+&& pRight > platLeft
+&& pLeft < platRight
+&& pBottom >= platTop
+&& pBottom <= platTop + 20) {
+playerY = window.innerHeight - item.y - 56;
+playerVy = 0;
+isJump = false;
+return true;
+}
+}
+return false;
+}
+function gameLoop() {
+if(!gameRun) return;
+playerVy += gravity;
+playerY += playerVy;
+player.style.bottom = playerY + 'px';
+checkCollision();
+platforms.forEach(item => {
+item.x -= platformSpeed;
+item.dom.style.left = item.x + 'px';
+});
+if(platforms[0].x < -150) {
+gameBox.removeChild(platforms.shift().dom);
+const lastX = platforms[platforms.length - 1].x;
+createPlatform(lastX + 180 + Math.random() * 100);
+score++;
+scoreDom.innerText = score;
+}
+if(playerY < -50) {
+gameOver();
+return;
+}
+requestAnimationFrame(gameLoop);
+}
+function startGame() {
+gameRun = true;
+score = 0;
+scoreDom.innerText = 0;
+playerY = 150;
+playerVy = 0;
+player.style.bottom = playerY + 'px';
+startModal.classList.add('hide');
+overModal.classList.add('hide');
+initPlatform();
+gameLoop();
+}
+function gameOver() {
+gameRun = false;
+finalScoreDom.innerText = score;
+overModal.classList.remove('hide');
+}
+startBtn.addEventListener('click', startGame);
+restartBtn.addEventListener('click', startGame);
+document.addEventListener('keydown', e => {
+if(e.code === 'Space') jump();
+});
+gameBox.addEventListener('click', jump);
+</script>
+</body>
+</html>
