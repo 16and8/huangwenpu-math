@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>黄文普 - 清新农场</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none}
+body{background:#2c2c3a;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:"微软雅黑","PingFang SC",sans-serif}
+.game-wrap{position:relative;border-radius:12px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+canvas{display:block;background:#e8f5e9;cursor:pointer}
+.hud{position:absolute;top:0;left:0;right:0;padding:6px 14px;display:flex;justify-content:space-between;align-items:center;
+  background:linear-gradient(180deg,rgba(0,0,0,.45),rgba(0,0,0,.1));pointer-events:none;z-index:10}
+.hud-l{display:flex;gap:12px;align-items:center}
+.hud-r{display:flex;gap:10px;align-items:center}
+.hud-item{color:#fff;font-size:13px;background:rgba(0,0,0,.35);padding:3px 10px;border-radius:20px;letter-spacing:.5px}
+.hud-item .num{font-weight:700;margin-left:3px}
+.toolbar{position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:center;gap:6px;padding:8px 12px;
+  background:linear-gradient(0deg,rgba(0,0,0,.5),transparent);z-index:10;pointer-events:none}
+.toolbar button{pointer-events:auto;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:8px;
+  padding:6px 14px;font-size:13px;cursor:pointer;transition:all .15s;backdrop-filter:blur(4px)}
+.toolbar button:hover{background:rgba(255,255,255,.25)}
+.toolbar button.active{background:rgba(255,255,255,.3);border-color:#fff}
+.modal{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;justify-content:center;align-items:center;
+  background:rgba(0,0,0,.55);z-index:20;backdrop-filter:blur(3px)}
+.modal-box{background:rgba(255,255,250,.95);border-radius:16px;padding:28px 32px;max-width:360px;width:88%;
+  text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto}
+.modal-box h2{font-size:20px;color:#4a6741;margin-bottom:6px;font-weight:700}
+.modal-box p{font-size:13px;color:#888;margin-bottom:14px;line-height:1.5}
+.hide{display:none!important}
+/* 角色定制 */
+.char-preview{width:80px;height:80px;margin:0 auto 12px;border-radius:12px;background:#f0f7ee}
+.char-options{display:flex;justify-content:center;gap:6px;margin:8px 0 12px}
+.char-options button{width:34px;height:34px;border-radius:50%;border:2px solid #ddd;cursor:pointer;transition:border-color .15s}
+.char-options button.sel{border-color:#6a9c5f}
+.btn{padding:10px 28px;background:#7cb36e;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;transition:background .15s}
+.btn:hover{background:#6ca05e}
+.btn-sm{padding:6px 16px;font-size:13px;border-radius:6px}
+.gold{color:#c8a229}
+/* 商店物品 */
+.shop-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.shop-item{background:#f7faf5;border-radius:10px;padding:10px;text-align:center;cursor:pointer;transition:all .15s;border:2px solid transparent}
+.shop-item:hover{border-color:#b8d9ae}
+.shop-item .icon{font-size:28px}
+.shop-item .name{font-size:12px;color:#555;margin:2px 0}
+.shop-item .price{font-size:11px;color:#c8a229}
+/* 消息 */
+.msg-popup{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.7);color:#fff;padding:10px 22px;
+  border-radius:10px;font-size:15px;z-index:15;pointer-events:none;opacity:0;transition:opacity .3s}
+.msg-popup.show{opacity:1}
+/* 收获弹窗 */
+.harvest-popup{position:absolute;z-index:12;pointer-events:none;font-size:20px;font-weight:700;color:#ffd54f;
+  text-shadow:0 1px 4px rgba(0,0,0,.3);opacity:0}
+/* 进度条 */
+.progress-wrap{background:#e0e0e0;border-radius:10px;height:6px;overflow:hidden;margin:10px 0}
+.progress-fill{height:100%;border-radius:10px;transition:width .3s;background:linear-gradient(90deg,#81c784,#66bb6a)}
+</style>
+</head>
+<body>
+<div class="game-wrap">
+<canvas id="gc"></canvas>
+<div class="hud" id="hud">
+  <div class="hud-l">
+    <span class="hud-item">💰 <span class="num gold" id="goldD">100</span></span>
+    <span class="hud-item">⭐ Lv.<span id="lvD">1</span> <span class="num" id="expD">0</span>/<span id="expNextD">20</span></span>
+    <span class="hud-item">⚡ <span class="num" id="staD">100</span></span>
+  </div>
+  <div class="hud-r">
+    <span class="hud-item" id="dayD">📅 春1日</span>
+  </div>
+</div>
+<div class="toolbar" id="toolbar">
+  <button id="tWater" class="active" data-tool="water">💧浇水</button>
+  <button id="tFert" data-tool="fert">🌿施肥</button>
+  <button id="tHarv" data-tool="harv">🪓收获</button>
+  <button id="tShop" data-tool="shop">🏪商店</button>
+  <button id="tRest">🌙 休息</button>
+</div>
+<div class="msg-popup" id="msgPopup"></div>
+
+<!-- 角色定制 -->
+<div class="modal" id="charModal">
+  <div class="modal-box">
+    <h2>🌱 欢迎来到小农场</h2>
+    <p>先来打扮一下你的农夫吧</p>
+    <canvas id="charPreview" width="80" height="80" style="display:block;margin:0 auto 8px;border-radius:10px;background:#f0f7ee"></canvas>
+    <div style="font-size:12px;color:#666;margin-bottom:4px">肤色</div>
+    <div class="char-options" id="skinOpts"></div>
+    <div style="font-size:12px;color:#666;margin-bottom:4px">头发</div>
+    <div class="char-options" id="hairOpts"></div>
+    <div style="font-size:12px;color:#666;margin-bottom:4px">衣服</div>
+    <div class="char-options" id="outfitOpts"></div>
+    <button class="btn" id="charConfirm" style="margin-top:12px">开始种田！</button>
+  </div>
+</div>
+<!-- 商店 -->
+<div class="modal hide" id="shopModal">
+  <div class="modal-box">
+    <h2>🏪 种子商店</h2>
+    <p>商人老陈："小伙子，想种点啥？"</p>
+    <div class="shop-grid" id="shopGrid"></div>
+    <button class="btn btn-sm" id="shopClose" style="margin-top:10px;background:#bbb">关闭</button>
+  </div>
+</div>
+<!-- 扩展 -->
+<div class="modal hide" id="expandModal">
+  <div class="modal-box">
+    <h2>🔨 扩建农场</h2>
+    <p id="expandDesc">扩大耕地，种更多作物！</p>
+    <div id="expandInfo"></div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+      <button class="btn btn-sm" id="expandBtn">扩建</button>
+      <button class="btn btn-sm" id="expandClose" style="background:#bbb">算了</button>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+// ═══════════════════════════════════════════
+//  黄文普农场 - 清新农场
+// ═══════════════════════════════════════════
+
+const T = 64; // 每格像素
+const COLS = 13, ROWS = 11;
+const W = COLS * T, H = ROWS * T;
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+canvas.width = W; canvas.height = H;
+
+// ─── 数据 ───
+const CROPS = {
+  carrot: { name:'胡萝卜', seedCost:15, growTime:180, stages:4, sell:35, exp:8, emoji:'🥕', color:'#ff8a65' },
+  tomato: { name:'番茄', seedCost:25, growTime:300, stages:5, sell:60, exp:12, emoji:'🍅', color:'#ef5350' },
+  corn: { name:'玉米', seedCost:20, growTime:240, stages:4, sell:50, exp:10, emoji:'🌽', color:'#ffd54f' },
+  strawberry: { name:'草莓', seedCost:30, growTime:360, stages:5, sell:80, exp:15, emoji:'🍓', color:'#ec407a' }
+};
+const ANIMALS = {
+  chick:{ name:'小鸡', cost:50, produce:'🥚', sell:8, interval:180 },
+  cow:{ name:'奶牛', cost:120, produce:'🥛', sell:15, interval:300 }
+};
+
+// ─── 工具 ───
+let tool = 'water';
+let game = null;
+let loaded = false;
+
+// ─── 角色装扮 ───
+const SKINS = ['#f5d6b8','#e8c39e','#d4a574','#c4956a'];
+const HAIRS = ['#4a3728','#8b6f47','#2a2a2a','#c8a882','#e8d5b7'];
+const OUTFITS = ['#7cb36e','#64b5f6','#ef9a9a','#ce93d8','#81c784'];
+let charState = { skin:0, hair:0, outfit:0 };
+
+// ─── 状态 ───
+let g = {
+  day:1, gold:100, exp:0, lv:1, stamina:100, maxStamina:100,
+  cols:6, rows:6, // 初始6×6
+  offsetX:0, offsetY:0, // 农场偏移居中
+  plots: [], // {crop, stage, timer, watered, fertilizer}
+  trees: [], // {x,y,type,timer,producing}
+  animals: [], // {x,y,type,timer}
+  player: {x:3,y:3}
+};
+
+function initGame() {
+  g.plots = Array(g.rows).fill().map(()=>Array(g.cols).fill(null));
+  g.trees = [];
+  g.animals = [];
+  g.offsetX = Math.floor((COLS - g.cols) / 2);
+  g.offsetY = Math.floor((ROWS - g.rows) / 2) + 1;
+  g.player = {x:Math.floor(g.cols/2),y:g.rows-1};
+  saveGame();
+}
+
+// ─── 储存 ───
+function saveGame() {
+  try {
+    const d = { day:g.day, gold:g.gold, exp:g.exp, lv:g.lv, sta:g.stamina, maxSta:g.maxStamina,
+      cols:g.cols, rows:g.rows, plots:g.plots, trees:g.trees, animals:g.animals,
+      player:g.player, char:charState, totalExp:totalExp() };
+    localStorage.setItem('farm_save', JSON.stringify(d));
+  } catch(e){}
+}
+function loadGame() {
+  try {
+    const d = JSON.parse(localStorage.getItem('farm_save'));
+    if(!d) return false;
+    g.day = d.day; g.gold = d.gold; g.exp = d.exp; g.lv = d.lv;
+    g.stamina = d.sta; g.maxStamina = d.maxSta;
+    g.cols = d.cols; g.rows = d.rows;
+    g.plots = d.plots; g.trees = d.trees||[];
+    g.animals = d.animals||[];
+    g.player = d.player;
+    if(d.char) charState = d.char;
+    g.offsetX = Math.floor((COLS - g.cols) / 2);
+    g.offsetY = Math.floor((ROWS - g.rows) / 2) + 1;
+    if(d.totalExp) _totalExp = d.totalExp;
+    return true;
+  } catch(e){ return false; }
+}
+
+let _totalExp = 0;
+function totalExp() { return _totalExp; }
+function expForNext() { return 20 + g.lv * 12; }
+function addExp(amt) {
+  g.exp += amt; _totalExp += amt;
+  const need = expForNext();
+  while(g.exp >= need) {
+    g.exp -= need;
+    g.lv++;
+    g.maxStamina += 10;
+    g.stamina = Math.min(g.stamina + 20, g.maxStamina);
+    msg(`🎉 升级！Lv.${g.lv} 体力上限+10`);
+  }
+  updateHUD(); saveGame();
+}
+
+// ─── HUD ───
+function updateHUD() {
+  document.getElementById('goldD').textContent = g.gold;
+  document.getElementById('lvD').textContent = g.lv;
+  document.getElementById('expD').textContent = g.exp;
+  document.getElementById('expNextD').textContent = expForNext();
+  document.getElementById('staD').textContent = g.stamina;
+  document.getElementById('dayD').textContent = `📅 春${g.day}日`;
+}
+
+// ─── 消息 ───
+let msgTimer = null;
+function msg(t) {
+  const el = document.getElementById('msgPopup');
+  el.textContent = t;
+  el.classList.add('show');
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(()=>el.classList.remove('show'), 1800);
+}
+
+// ─── 绘制 ───
+function draw() {
+  ctx.clearRect(0,0,W,H);
+  
+  // 背景草地
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) {
+    const sx=x*T, sy=y*T;
+    ctx.fillStyle = (x+y)%2===0 ? '#e8f5e9' : '#e0f2e1';
+    ctx.fillRect(sx,sy,T,T);
+    // 小草装饰
+    if((x*7+y*13)%5===0) {
+      ctx.fillStyle='rgba(100,160,90,.2)'; ctx.beginPath();
+      ctx.moveTo(sx+10, sy+T); ctx.lineTo(sx+6, sy+T-8); ctx.lineTo(sx+14, sy+T-8); ctx.closePath(); ctx.fill();
+    }
+  }
+  
+  const ox = g.offsetX * T, oy = g.offsetY * T;
+  
+  // 农场边界
+  ctx.fillStyle = '#795548';
+  ctx.fillRect(ox-4, oy-4, g.cols*T+8, g.rows*T+8);
+  ctx.fillStyle = '#8d6e63';
+  ctx.fillRect(ox-2, oy-2, g.cols*T+4, g.rows*T+4);
+  
+  // 地块 + 作物
+  for(let gy=0; gy<g.rows; gy++) for(let gx=0; gx<g.cols; gx++) {
+    const px = ox + gx * T, py = oy + gy * T;
+    const plot = g.plots[gy][gx];
+    
+    // 地块
+    ctx.fillStyle = plot ? '#a1887f' : '#d7ccc8';
+    ctx.fillRect(px+2, py+2, T-4, T-4);
+    // 耕作纹理
+    if(plot) {
+      ctx.strokeStyle = 'rgba(0,0,0,.08)';
+      ctx.lineWidth = 1;
+      for(let i=0;i<3;i++) {
+        const lx=px+8+i*16;
+        ctx.beginPath(); ctx.moveTo(lx,py+8); ctx.lineTo(lx,py+T-8); ctx.stroke();
+      }
+    }
+    
+    if(plot) {
+      if(plot.watered) {
+        ctx.fillStyle = 'rgba(100,180,255,.12)';
+        ctx.fillRect(px+2, py+2, T-4, T-4);
+      }
+      if(plot.fertilizer && plot.fertilizer > 0) {
+        ctx.fillStyle = 'rgba(139,195,74,.15)';
+        ctx.fillRect(px+2, py+2, T-4, T-4);
+      }
+      
+      const crop = CROPS[plot.crop];
+      if(crop) {
+        const pct = 1 - plot.timer / crop.growTime;
+        const stage = Math.min(Math.floor(pct * crop.stages), crop.stages-1);
+        const cy = py + T - 8 - stage * 8;
+        
+        if(stage >= crop.stages-1) {
+          // 成熟
+          ctx.font = '28px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+          ctx.fillText(crop.emoji, px+T/2, py+T-4);
+          // 闪光
+          if(Math.floor(Date.now()/800)%2===0) {
+            ctx.fillStyle='rgba(255,255,200,.5)'; ctx.beginPath();
+            ctx.arc(px+T/2, py+6, 5, 0, Math.PI*2); ctx.fill();
+          }
+        } else {
+          // 幼苗
+          const h = 6 + stage * 5;
+          ctx.fillStyle = crop.color;
+          ctx.fillRect(px+T/2-2, cy, 4, h);
+          if(stage>0) {
+            ctx.fillStyle = '#a5d6a7';
+            ctx.fillRect(px+T/2-6, cy-2, 12, 4);
+          }
+          if(stage>=2) {
+            ctx.fillStyle = crop.color;
+            ctx.fillRect(px+T/2-8, cy-4, 3, 6);
+            ctx.fillRect(px+T/2+5, cy-4, 3, 6);
+          }
+        }
+        
+        // 成长进度条（小）
+        if(stage < crop.stages-1) {
+          const bw = T-12;
+          ctx.fillStyle='rgba(0,0,0,.15)';
+          ctx.fillRect(px+6, py+T-6, bw, 3);
+          ctx.fillStyle = '#81c784';
+          ctx.fillRect(px+6, py+T-6, bw * pct, 3);
+        }
+      }
+    }
+  }
+  
+  // 果树
+  for(const tr of g.trees) {
+    const px = ox + tr.x * T, py = oy + tr.y * T;
+    ctx.fillStyle = '#6d4c41';
+    ctx.fillRect(px+T/2-4, py+12, 8, 20);
+    ctx.fillStyle = '#66bb6a';
+    ctx.beginPath(); ctx.arc(px+T/2, py+8, 16, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#43a047';
+    ctx.beginPath(); ctx.arc(px+T/2-6, py+4, 8, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px+T/2+6, py+6, 7, 0, Math.PI*2); ctx.fill();
+    if(tr.timer <= 0) {
+      ctx.font='16px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('🍎', px+T/2, py+4);
+    }
+  }
+  
+  // 动物
+  for(const a of g.animals) {
+    const px = ox + a.x * T, py = oy + a.y * T;
+    ctx.font = '26px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillText(a.type==='chick'?'🐔':'🐄', px+T/2, py+T-2);
+    if(a.timer <= 0) {
+      ctx.font='11px sans-serif'; ctx.fillStyle='#ffd54f';
+      ctx.fillText(a.type==='chick'?'🥚':'🥛', px+T/2+10, py+6);
+    }
+  }
+  
+  // 玩家
+  const px = ox + g.player.x * T, py = oy + g.player.y * T;
+  // 影子
+  ctx.fillStyle='rgba(0,0,0,.1)'; ctx.beginPath();
+  ctx.ellipse(px+T/2, py+T-2, 14, 5, 0, 0, Math.PI*2); ctx.fill();
+  // 身体
+  ctx.fillStyle = OUTFITS[charState.outfit];
+  ctx.fillRect(px+T/2-10, py+14, 20, 20);
+  // 头
+  ctx.fillStyle = SKINS[charState.skin];
+  ctx.beginPath(); ctx.arc(px+T/2, py+10, 13, 0, Math.PI*2); ctx.fill();
+  // 头发
+  ctx.fillStyle = HAIRS[charState.hair];
+  ctx.beginPath(); ctx.arc(px+T/2, py+6, 12, Math.PI, 0); ctx.fill();
+  // 眼睛
+  ctx.fillStyle='#333'; ctx.beginPath();
+  ctx.arc(px+T/2-4, py+9, 2.5, 0, Math.PI*2);
+  ctx.arc(px+T/2+4, py+9, 2.5, 0, Math.PI*2); ctx.fill();
+  // 嘴
+  ctx.strokeStyle='#c44'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(px+T/2, py+14, 4, 0.1, Math.PI-0.1); ctx.stroke();
+  // 帽子（小草帽）
+  ctx.fillStyle='#f5deb3'; ctx.beginPath();
+  ctx.ellipse(px+T/2, py+2, 14, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle='#deb887'; ctx.fillRect(px+T/2-6, py-5, 12, 7);
+  
+  // 当前工具高亮
+  if(tool==='water'||tool==='fert') {
+    const cx=px+T/2, cy=py+T+4;
+    ctx.fillStyle = tool==='water'?'rgba(100,200,255,.3)':'rgba(139,195,74,.3)';
+    ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI*2); ctx.fill();
+    ctx.font='14px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(tool==='water'?'💧':'🌿', cx, cy);
+  }
+  
+  // 工具提示
+  ctx.fillStyle='rgba(0,0,0,.3)'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(`Lv.${g.lv} ${g.day}日`, W/2, H-6);
+}
+
+// ─── 交互 ───
+function getGridPos(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = (clientX - rect.left) * (W/rect.width);
+  const my = (clientY - rect.top) * (H/rect.height);
+  const ox = g.offsetX * T, oy = g.offsetY * T;
+  const gx = Math.floor((mx - ox) / T);
+  const gy = Math.floor((my - oy) / T);
+  if(gx>=0 && gx<g.cols && gy>=0 && gy<g.rows) return {gx,gy};
+  return null;
+}
+
+function doAction(gx, gy) {
+  const plot = g.plots[gy][gx];
+  const px = g.player.x, py = g.player.y;
+  const dist = Math.abs(gx-px) + Math.abs(gy-py);
+  if(dist > 1.5) { msg('👣 走靠近一点再操作'); return; }
+  
+  if(tool === 'water') {
+    if(!plot) { msg('🌾 先开垦土地'); return; }
+    if(!plot.crop) { msg('🌱 先种点东西'); return; }
+    if(plot.watered) { msg('💧 已经浇过水了'); return; }
+    if(g.stamina < 2) { msg('😰 体力不够了，休息一下吧'); return; }
+    plot.watered = true;
+    plot.timer -= 30;
+    if(plot.timer < 0) plot.timer = 0;
+    g.stamina -= 2;
+    msg('💧 浇水成功！成熟时间缩短');
+  } else if(tool === 'fert') {
+    if(!plot) { msg('🌾 先开垦土地'); return; }
+    if(!plot.crop) { msg('🌱 先种点东西'); return; }
+    if(g.stamina < 3) { msg('😰 体力不够了'); return; }
+    if(plot.fertilizer && plot.fertilizer > 0) { msg('🌿 已经施过肥了'); return; }
+    if(g.gold < 5) { msg('💰 肥料要5金币，不够了'); return; }
+    g.gold -= 5;
+    plot.fertilizer = 60; // 加速效果持续60 tick
+    plot.timer -= 20;
+    if(plot.timer < 0) plot.timer = 0;
+    g.stamina -= 3;
+    msg('🌿 施肥完成！长得更快了');
+  } else if(tool === 'harv') {
+    if(!plot || !plot.crop) { msg('🌱 这里没有东西可以收'); return; }
+    const crop = CROPS[plot.crop];
+    if(plot.timer > 0) { msg('⏳ 还没成熟呢，等等吧'); return; }
+    // 收获
+    const bonus = plot.fertilizer > 0 ? 1.2 : 1;
+    const count = 1 + (Math.random() < 0.3 ? 1 : 0);
+    const earn = Math.floor(crop.sell * count * bonus);
+    g.gold += earn;
+    addExp(Math.floor(crop.exp * bonus));
+    g.plots[gy][gx] = null;
+    msg(`🎉 收获${count}个${crop.name}，卖了${earn}金币！`);
+  }
+  render();
+}
+
+// ─── 渲染循环 ───
+let animFrame = null;
+function render() {
+  draw(); updateHUD(); saveGame();
+  animFrame = requestAnimationFrame(render);
+}
+
+// ─── 工具 ───
+document.querySelectorAll('.toolbar button[data-tool]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.toolbar button[data-tool]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    tool = b.dataset.tool;
+  });
+});
+document.getElementById('tRest').addEventListener('click', ()=>{
+  if(!g || g.stamina >= g.maxStamina) { msg('💪 精神满满，不用休息'); return; }
+  g.day++;
+  // 每天更新
+  g.stamina = g.maxStamina;
+  // 作物生长
+  for(let gy=0; gy<g.rows; gy++) for(let gx=0; gx<g.cols; gx++) {
+    const p = g.plots[gy][gx];
+    if(p && p.crop) {
+      p.timer -= 60; // 过一天减少60 tick
+      if(p.fertilizer && p.fertilizer > 0) p.fertilizer -= 20;
+      if(p.fertilizer && p.fertilizer < 0) p.fertilizer = 0;
+      if(p.timer < 0) p.timer = 0;
+      p.watered = false;
+    }
+  }
+  // 果树
+  for(const tr of g.trees) if(tr.timer > 0) tr.timer -= 60;
+  // 动物
+  for(const a of g.animals) if(a.timer > 0) a.timer -= 60;
+  
+  msg(`🌙 春天第${g.day}天到了！体力恢复满`);
+  render();
+});
+
+// ─── 商店 ───
+document.getElementById('tShop').addEventListener('click', openShop);
+function openShop() {
+  const shopEl = document.getElementById('shopModal');
+  const grid = document.getElementById('shopGrid');
+  grid.innerHTML = '';
+  
+  // 种子
+  for(const [k,v] of Object.entries(CROPS)) {
+    const d = document.createElement('div');
+    d.className = 'shop-item';
+    d.innerHTML = `<div class="icon">${v.emoji}</div>
+      <div class="name">${v.name} 🌱</div>
+      <div class="price">💰 ${v.seedCost}</div>`;
+    d.addEventListener('click', ()=>{
+      if(g.gold < v.seedCost) { msg('💰 金币不够'); return; }
+      // 找空地
+      let placed = false;
+      for(let gy=0; gy<g.rows && !placed; gy++) for(let gx=0; gx<g.cols && !placed; gx++) {
+        if(!g.plots[gy][gx]) {
+          g.plots[gy][gx] = { crop:k, timer:v.growTime, watered:false, fertilizer:0 };
+          g.gold -= v.seedCost;
+          msg(`🌱 种下了${v.name}！`);
+          placed = true;
+        }
+      }
+      if(!placed) msg('🟫 没有空地了，扩建一下吧');
+      render();
+    });
+    grid.appendChild(d);
+  }
+  
+  // 果树
+  const ft = document.createElement('div');
+  ft.className = 'shop-item';
+  ft.innerHTML = `<div class="icon">🌳</div><div class="name">果树苗</div><div class="price">💰 80</div>`;
+  ft.addEventListener('click', ()=>{
+    if(g.gold < 80) { msg('💰 金币不够'); return; }
+    let placed = false;
+    for(let gy=0; gy<g.rows && !placed; gy++) for(let gx=0; gx<g.cols && !placed; gx++) {
+      if(!g.plots[gy][gx] && !g.trees.some(t=>t.x===gx&&t.y===gy) && !g.animals.some(a=>a.x===gx&&a.y===gy)) {
+        g.trees.push({ x:gx, y:gy, timer:480 });
+        g.gold -= 80;
+        msg('🌳 种下了果树！过几天就能结果');
+        placed = true;
+      }
+    }
+    if(!placed) msg('🟫 没有空地了');
+    render();
+  });
+  grid.appendChild(ft);
+  
+  // 动物
+  for(const [k,v] of Object.entries(ANIMALS)) {
+    const d = document.createElement('div');
+    d.className = 'shop-item';
+    d.innerHTML = `<div class="icon">${k==='chick'?'🐤':'🐄'}</div>
+      <div class="name">${v.name}</div>
+      <div class="price">💰 ${v.cost}</div>`;
+    d.addEventListener('click', ()=>{
+      if(g.gold < v.cost) { msg('💰 金币不够'); return; }
+      let placed = false;
+      for(let gy=0; gy<g.rows && !placed; gy++) for(let gx=0; gx<g.cols && !placed; gx++) {
+        if(!g.plots[gy][gx] && !g.trees.some(t=>t.x===gx&&t.y===gy) && !g.animals.some(a=>a.x===gx&&a.y===gy)) {
+          g.animals.push({ x:gx, y:gy, type:k, timer:v.interval });
+          g.gold -= v.cost;
+          msg(`🐔 有了新${v.name}！`);
+          placed = true;
+        }
+      }
+      if(!placed) msg('🟫 没有空地了');
+      render();
+    });
+    grid.appendChild(d);
+  }
+  
+  shopEl.classList.remove('hide');
+}
+document.getElementById('shopClose').addEventListener('click', ()=>{
+  document.getElementById('shopModal').classList.add('hide');
+});
+
+// ─── 扩建 ───
+document.addEventListener('keydown', e=>{ if(e.key==='e') openExpand(); });
+function openExpand() {
+  const cost = (g.cols + g.rows) * 15;
+  document.getElementById('expandDesc').textContent = `当前 ${g.cols}×${g.rows}  →  扩大一行一列`;
+  document.getElementById('expandInfo').innerHTML = `<p style="font-size:15px">扩建费用：💰 <strong>${cost}</strong></p>`;
+  document.getElementById('expandModal').classList.remove('hide');
+  document.getElementById('expandBtn').onclick = ()=>{
+    if(g.gold < cost) { msg(`💰 需要${cost}金币`); return; }
+    g.gold -= cost;
+    // 扩展数组
+    for(let gy=0; gy<g.rows; gy++) g.plots[gy].push(null);
+    g.plots.push(Array(g.cols+1).fill(null));
+    g.cols++; g.rows++;
+    g.offsetX = Math.floor((COLS - g.cols) / 2);
+    g.offsetY = Math.floor((ROWS - g.rows) / 2) + 1;
+    document.getElementById('expandModal').classList.add('hide');
+    msg(`🔨 农场扩建到 ${g.cols}×${g.rows}！`);
+    render();
+  };
+}
+document.getElementById('expandClose').addEventListener('click', ()=>{
+  document.getElementById('expandModal').classList.add('hide');
+});
+
+// ─── Canvas 交互 ───
+canvas.addEventListener('click', e=>{
+  if(!g) return;
+  const pos = getGridPos(e.clientX, e.clientY);
+  if(!pos) { msg('🧑‍🌾 点击农场里的田地'); return; }
+  if(tool === 'shop' || tool === 'expand') return;
+  doAction(pos.gx, pos.gy);
+});
+
+// ─── 键盘移动 ───
+document.addEventListener('keydown', e=>{
+  if(!g) return;
+  const k = e.key;
+  let dx=0, dy=0;
+  if(k==='ArrowUp'||k==='w') dy=-1;
+  else if(k==='ArrowDown'||k==='s') dy=1;
+  else if(k==='ArrowLeft'||k==='a') dx=-1;
+  else if(k==='ArrowRight'||k==='d') dx=1;
+  else if(k===' ') { e.preventDefault(); return; }
+  if(dx||dy) {
+    e.preventDefault();
+    const nx = g.player.x + dx, ny = g.player.y + dy;
+    if(nx>=0 && nx<g.cols && ny>=0 && ny<g.rows) {
+      // 检查有没有障碍物
+      if(!g.trees.some(t=>t.x===nx&&t.y===ny) && !g.animals.some(a=>a.x===nx&&a.y===ny)) {
+        g.player.x = nx; g.player.y = ny;
+        draw();
+      }
+    }
+  }
+});
+
+// ─── 触屏 ───
+let tStart = null;
+canvas.addEventListener('touchstart', e=>{
+  const t = e.touches[0];
+  tStart = {x:t.clientX, y:t.clientY};
+});
+canvas.addEventListener('touchend', e=>{
+  if(!tStart || !g) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - tStart.x, dy = t.clientY - tStart.y;
+  tStart = null;
+  if(Math.abs(dx)<10 && Math.abs(dy)<10) {
+    // 点击
+    const pos = getGridPos(t.clientX, t.clientY);
+    if(pos) doAction(pos.gx, pos.gy);
+  } else {
+    // 滑动移动
+    let mx=0, my=0;
+    if(Math.abs(dx) > Math.abs(dy)) mx = dx>0 ? 1 : -1;
+    else my = dy>0 ? 1 : -1;
+    const nx = g.player.x + mx, ny = g.player.y + my;
+    if(nx>=0 && nx<g.cols && ny>=0 && ny<g.rows &&
+      !g.trees.some(t=>t.x===nx&&t.y===ny) && !g.animals.some(a=>a.x===nx&&a.y===ny)) {
+      g.player.x = nx; g.player.y = ny;
+      draw();
+    }
+  }
+});
+
+// ─── 角色定制 ───
+function initCharCustom() {
+  const sel = document.getElementById('skinOpts');
+  SKINS.forEach((c,i)=>{
+    const b = document.createElement('button');
+    b.style.background = c;
+    if(i===charState.skin) b.classList.add('sel');
+    b.addEventListener('click',()=>{charState.skin=i; refreshCharPreview();});
+    sel.appendChild(b);
+  });
+  const hsel = document.getElementById('hairOpts');
+  HAIRS.forEach((c,i)=>{
+    const b = document.createElement('button');
+    b.style.background = c;
+    if(i===charState.hair) b.classList.add('sel');
+    b.addEventListener('click',()=>{charState.hair=i; refreshCharPreview();});
+    hsel.appendChild(b);
+  });
+  const osel = document.getElementById('outfitOpts');
+  OUTFITS.forEach((c,i)=>{
+    const b = document.createElement('button');
+    b.style.background = c;
+    if(i===charState.outfit) b.classList.add('sel');
+    b.addEventListener('click',()=>{charState.outfit=i; refreshCharPreview();});
+    osel.appendChild(b);
+  });
+}
+
+function refreshCharPreview() {
+  const c = document.getElementById('charPreview');
+  const cx = c.getContext('2d');
+  cx.clearRect(0,0,80,80);
+  cx.fillStyle = OUTFITS[charState.outfit];
+  cx.fillRect(28, 42, 24, 24);
+  cx.fillStyle = SKINS[charState.skin];
+  cx.beginPath(); cx.arc(40, 30, 16, 0, Math.PI*2); cx.fill();
+  cx.fillStyle = HAIRS[charState.hair];
+  cx.beginPath(); cx.arc(40, 24, 15, Math.PI, 0); cx.fill();
+  cx.fillStyle='#333'; cx.beginPath();
+  cx.arc(35, 30, 3, 0, Math.PI*2); cx.arc(45, 30, 3, 0, Math.PI*2); cx.fill();
+  cx.fillStyle='#c44';
+  cx.beginPath(); cx.arc(40, 37, 4, 0.1, Math.PI-0.1); cx.stroke();
+  cx.fillStyle='#deb887'; cx.fillRect(32, 16, 16, 8);
+  // 更新点击状态
+  document.querySelectorAll('#skinOpts button').forEach((b,i)=>b.classList.toggle('sel',i===charState.skin));
+  document.querySelectorAll('#hairOpts button').forEach((b,i)=>b.classList.toggle('sel',i===charState.hair));
+  document.querySelectorAll('#outfitOpts button').forEach((b,i)=>b.classList.toggle('sel',i===charState.outfit));
+}
+
+// ─── 开始游戏 ───
+document.getElementById('charConfirm').addEventListener('click', ()=>{
+  document.getElementById('charModal').classList.add('hide');
+  if(!loaded) { initGame(); loaded = true; }
+  document.getElementById('toolbar').classList.remove('hide');
+  render();
+});
+
+// ─── 多语言默认移动端提示 ───
+// 触屏支持扩建
+document.addEventListener('dblclick', ()=>{
+  openExpand();
+});
+
+// ─── 启动 ───
+initCharCustom();
+loaded = loadGame();
+if(loaded) {
+  document.getElementById('charModal').classList.add('hide');
+  document.getElementById('toolbar').classList.remove('hide');
+  render();
+} else {
+  refreshCharPreview();
+}
+</script>
+</body>
+</html>
