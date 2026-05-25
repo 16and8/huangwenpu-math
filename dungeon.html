@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>黄文普 - 勇闯地牢</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none}
+body{background:#0a0a0f;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:"微软雅黑",sans-serif;overflow:hidden}
+.game-wrap{position:relative}
+#gameCanvas{display:block;border:2px solid #333;border-radius:4px;background:#111;image-rendering:pixelated}
+.hud{position:absolute;top:0;left:0;right:0;padding:8px 12px;display:flex;justify-content:space-between;color:#fff;font-size:14px;z-index:10;pointer-events:none}
+.hud span{background:rgba(0,0,0,.6);padding:3px 10px;border-radius:4px}
+.hp-bar{color:#ff6b6b}
+.modal{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(20,20,30,.95);border:2px solid #555;border-radius:12px;padding:32px 48px;text-align:center;color:#fff;z-index:20;min-width:260px}
+.modal h2{font-size:22px;margin-bottom:12px}
+.modal p{font-size:14px;color:#aaa;margin-bottom:16px;line-height:1.6}
+.modal button{padding:10px 32px;font-size:16px;background:#4a6fa5;color:#fff;border:none;border-radius:6px;cursor:pointer;transition:background .2s}
+.modal button:hover{background:#5a7fb5}
+.hide{display:none}
+.floor-indicator{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:32px;font-weight:bold;z-index:15;pointer-events:none;opacity:0;animation:fadeInOut 1.5s ease}
+@keyframes fadeInOut{0%{opacity:0;scale:.5}30%{opacity:1;scale:1}70%{opacity:1;scale:1}100%{opacity:0;scale:1.2}}
+</style>
+</head>
+<body>
+<div class="game-wrap">
+<canvas id="gameCanvas"></canvas>
+<div class="hud">
+<span class="hp-bar">❤️ <span id="hpDisplay">10</span>/10</span>
+<span>⚔️ <span id="atkDisplay">3</span>　🛡️ <span id="defDisplay">0</span></span>
+<span>🏆 <span id="scoreDisplay">0</span>　📊 <span id="floorDisplay">1</span>层</span>
+</div>
+<div class="floor-indicator" id="floorIndicator"></div>
+<div class="modal" id="startModal">
+<h2>🗡️ 勇闯地牢</h2>
+<p>黄文普，探索地牢、消灭怪物、收集宝物！<br>
+方向键 / WASD 移动　碰到怪物自动攻击<br>
+每下一层怪物更强，你能走多远？</p>
+<button id="startBtn">开始冒险</button>
+</div>
+<div class="modal hide" id="overModal">
+<h2>💀 陨落</h2>
+<p>黄文普倒在了地下 <span id="finalFloor">0</span> 层<br>
+击杀怪物：<span id="finalKills">0</span> 只</p>
+<button id="restartBtn">再来一次</button>
+</div>
+</div>
+<script>
+// ─── 配置 ───
+const TILE = 28;
+const COLS = 45, ROWS = 33;
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = COLS * TILE;
+canvas.height = ROWS * TILE;
+
+// ─── DOM ───
+const hpD = document.getElementById('hpDisplay');
+const atkD = document.getElementById('atkDisplay');
+const defD = document.getElementById('defDisplay');
+const scoreD = document.getElementById('scoreDisplay');
+const floorD = document.getElementById('floorDisplay');
+const fIndicator = document.getElementById('floorIndicator');
+
+// ─── 游戏状态 ───
+let game = null;
+const DIRS = [
+  [0,-1],[0,1],[-1,0],[1,0],
+  [-1,-1],[1,-1],[-1,1],[1,1]
+];
+
+// ─── 地图生成 ───
+function genDungeon(floor) {
+  const map = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+  const rooms = [];
+  const walls = [];
+  
+  // 生成房间
+  let rCount = 6 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < rCount * 2; i++) {
+    const w = 4 + Math.floor(Math.random() * 6);
+    const h = 4 + Math.floor(Math.random() * 5);
+    const x = 1 + Math.floor(Math.random() * (COLS - w - 2));
+    const y = 1 + Math.floor(Math.random() * (ROWS - h - 2));
+    if (!rooms.some(r => !(x + w + 1 < r.x || r.x + r.w + 1 < x || y + h + 1 < r.y || r.y + r.h + 1 < y))) {
+      rooms.push({x,y,w,h});
+      for (let ry = y; ry < y + h; ry++)
+        for (let rx = x; rx < x + w; rx++)
+          map[ry][rx] = 1;
+    }
+  }
+  
+  // 连接房间
+  for (let i = 1; i < rooms.length; i++) {
+    const a = rooms[i-1], b = rooms[i];
+    let cx = Math.floor(a.x + a.w/2), cy = Math.floor(a.y + a.h/2);
+    const dx = Math.floor(b.x + b.w/2), dy = Math.floor(b.y + b.h/2);
+    while (cx !== dx) {
+      if (cx > 0 && cx < COLS-1 && cy > 0 && cy < ROWS-1) map[cy][cx] = 1;
+      cy > dy ? cy-- : (cx < dx ? cx++ : (cy < dy ? cy++ : (cx > dx ? cx-- : cx++)));
+    }
+    while (cy !== dy) {
+      if (cx > 0 && cx < COLS-1 && cy > 0 && cy < ROWS-1) map[cy][cx] = 1;
+      cy < dy ? cy++ : cy--;
+    }
+  }
+  
+  // 加点死胡同和随机填充
+  for (let i = 0; i < 15; i++) {
+    const rx = 2 + Math.floor(Math.random() * (COLS - 4));
+    const ry = 2 + Math.floor(Math.random() * (ROWS - 4));
+    if (map[ry][rx] === 0) {
+      let neighbors = 0;
+      for (const [dx,dy] of [[-1,0],[1,0],[0,-1],[0,1]])
+        if (rx+dx > 0 && rx+dx < COLS && ry+dy > 0 && ry+dy < ROWS && map[ry+dy][rx+dx] === 1) neighbors++;
+      if (neighbors >= 1) map[ry][rx] = 1;
+    }
+  }
+  
+  return { map, rooms };
+}
+
+// ─── 敌人生成 ───
+function spawnEnemies(map, rooms, floor) {
+  const enemies = [];
+  const count = 3 + floor * 2 + Math.floor(Math.random() * 3);
+  const types = floor < 3 ? ['slime','slime','bat'] :
+                floor < 6 ? ['slime','skeleton','bat'] :
+                ['skeleton','bat','demon'];
+  
+  for (let i = 0; i < count; i++) {
+    const room = rooms[Math.floor(Math.random() * rooms.length)];
+    let ex, ey, tries = 0;
+    do {
+      ex = room.x + 1 + Math.floor(Math.random() * (room.w - 2));
+      ey = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
+      tries++;
+    } while (tries < 30 && (map[ey][ex] !== 1));
+    
+    const type = types[Math.floor(Math.random() * types.length)];
+    const t = ENEMY_TYPES[type];
+    enemies.push({
+      x: ex, y: ey, type,
+      hp: t.hp + Math.floor(floor * 0.5),
+      maxHp: t.hp + Math.floor(floor * 0.5),
+      atk: t.atk + Math.floor(floor * 0.3),
+      def: t.def,
+      symbol: t.symbol, color: t.color
+    });
+  }
+  return enemies;
+}
+
+const ENEMY_TYPES = {
+  slime: { symbol: '🟢', hp: 2, atk: 1, def: 0, color: '#4caf50' },
+  bat: { symbol: '🦇', hp: 1, atk: 1, def: 0, color: '#9c27b0' },
+  skeleton: { symbol: '💀', hp: 4, atk: 2, def: 1, color: '#bdbdbd' },
+  demon: { symbol: '👿', hp: 6, atk: 3, def: 2, color: '#f44336' }
+};
+
+// ─── 物品生成 ───
+function spawnItems(map, rooms, floor) {
+  const items = [];
+  const count = 2 + Math.floor(Math.random() * 3);
+  const pool = ['hp','hp','atk','def'];
+  if (floor >= 3) pool.push('atk','def');
+  
+  for (let i = 0; i < count; i++) {
+    const room = rooms[Math.floor(Math.random() * rooms.length)];
+    let ix, iy, tries = 0;
+    do {
+      ix = room.x + 1 + Math.floor(Math.random() * (room.w - 2));
+      iy = room.y + 1 + Math.floor(Math.random() * (room.h - 2));
+      tries++;
+    } while (tries < 30 && map[iy][ix] !== 1);
+    
+    const type = pool[Math.floor(Math.random() * pool.length)];
+    items.push({ x: ix, y: iy, type });
+  }
+  
+  // 楼梯
+  const lastRoom = rooms[rooms.length - 1];
+  items.push({
+    x: lastRoom.x + Math.floor(lastRoom.w / 2),
+    y: lastRoom.y + Math.floor(lastRoom.h / 2),
+    type: 'stair'
+  });
+  
+  return items;
+}
+
+// ─── 游戏初始化 ───
+function initGame() {
+  const floor = 1;
+  const dungeon = genDungeon(floor);
+  const startRoom = dungeon.rooms[0];
+  
+  game = {
+    floor, dungeon,
+    player: {
+      x: startRoom.x + Math.floor(startRoom.w / 2),
+      y: startRoom.y + Math.floor(startRoom.h / 2),
+      hp: 10, maxHp: 10,
+      atk: 3, def: 0,
+      kills: 0
+    },
+    enemies: spawnEnemies(dungeon.map, dungeon.rooms, floor),
+    items: spawnItems(dungeon.map, dungeon.rooms, floor),
+    turn: 0,
+    running: true,
+    fov: 7
+  };
+  
+  updateHUD();
+}
+
+function nextFloor() {
+  if (!game.running) return;
+  const floor = game.floor + 1;
+  const dungeon = genDungeon(floor);
+  const startRoom = dungeon.rooms[0];
+  
+  game.floor = floor;
+  game.dungeon = dungeon;
+  game.player.x = startRoom.x + Math.floor(startRoom.w / 2);
+  game.player.y = startRoom.y + Math.floor(startRoom.h / 2);
+  game.enemies = spawnEnemies(dungeon.map, dungeon.rooms, floor);
+  game.items = spawnItems(dungeon.map, dungeon.rooms, floor);
+  
+  // 楼层动画
+  fIndicator.textContent = `🏚️ 第 ${floor} 层`;
+  fIndicator.style.animation = 'none';
+  setTimeout(() => fIndicator.style.animation = 'fadeInOut 1.5s ease', 10);
+  
+  updateHUD();
+}
+
+function updateHUD() {
+  if (!game) return;
+  const p = game.player;
+  hpD.textContent = p.hp;
+  atkD.textContent = p.atk;
+  defD.textContent = p.def;
+  scoreD.textContent = p.kills;
+  floorD.textContent = game.floor;
+}
+
+// ─── 视野计算 ───
+function isVisible(tx, ty) {
+  if (!game) return false;
+  const dx = tx - game.player.x;
+  const dy = ty - game.player.y;
+  if (Math.abs(dx) > game.fov || Math.abs(dy) > game.fov) return false;
+  
+  // Raycast
+  const steps = Math.max(Math.abs(dx), Math.abs(dy));
+  if (steps === 0) return true;
+  for (let i = 1; i <= steps; i++) {
+    const px = Math.floor(game.player.x + dx * i / steps + 0.5);
+    const py = Math.floor(game.player.y + dy * i / steps + 0.5);
+    if (px === tx && py === ty) return true;
+    if (px < 0 || px >= COLS || py < 0 || py >= ROWS) return false;
+    if (game.dungeon.map[py][px] === 0 && !(px === tx && py === ty)) return false;
+  }
+  return true;
+}
+
+// ─── 敌人 AI ───
+function moveEnemies() {
+  if (!game || !game.running) return;
+  const px = game.player.x, py = game.player.y;
+  
+  for (const e of game.enemies) {
+    const dist = Math.abs(e.x - px) + Math.abs(e.y - py);
+    
+    if (dist === 1 || (dist === 0)) continue; // adjacent, will fight in player phase
+    
+    let moved = false;
+    let dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+    
+    if (e.type === 'bat' && dist < 12) {
+      dirs = [[px - e.x > 0 ? 1 : -1, 0], [0, py - e.y > 0 ? 1 : -1],
+              [0, -(py - e.y > 0 ? 1 : -1)], [-(px - e.x > 0 ? 1 : -1), 0]];
+    } else if (dist < 8 && e.type !== 'slime') {
+      if (Math.abs(px - e.x) > Math.abs(py - e.y)) {
+        dirs = [[px > e.x ? 1 : -1, 0], [0, py > e.y ? 1 : -1],
+                [0, -(py > e.y ? 1 : -1)], [-(px > e.x ? 1 : -1), 0]];
+      } else {
+        dirs = [[0, py > e.y ? 1 : -1], [px > e.x ? 1 : -1, 0],
+                [-(px > e.x ? 1 : -1), 0], [0, -(py > e.y ? 1 : -1)]];
+      }
+    }
+    
+    for (let i = 0; i < dirs.length && !moved; i++) {
+      const [dx, dy] = dirs[Math.floor(i < 2 ? i : Math.random() * dirs.length)];
+      const nx = e.x + dx, ny = e.y + dy;
+      if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS &&
+          game.dungeon.map[ny][nx] === 1 &&
+          !(nx === px && ny === py) &&
+          !game.enemies.some(o => o !== e && o.x === nx && o.y === ny) &&
+          !game.items.some(it => it.x === nx && it.y === ny && it.type === 'stair')) {
+        e.x = nx; e.y = ny;
+        moved = true;
+      }
+    }
+  }
+}
+
+// ─── 玩家移动 ───
+function movePlayer(dx, dy) {
+  if (!game || !game.running) return;
+  const p = game.player;
+  const nx = p.x + dx, ny = p.y + dy;
+  
+  if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) return;
+  if (game.dungeon.map[ny][nx] === 0) return;
+  
+  // 检查敌人
+  const enemy = game.enemies.find(e => e.x === nx && e.y === ny);
+  if (enemy) {
+    // 攻击
+    const dmg = Math.max(1, p.atk - enemy.def);
+    enemy.hp -= dmg;
+    if (enemy.hp <= 0) {
+      game.enemies = game.enemies.filter(e => e !== enemy);
+      p.kills++;
+      // 有可能掉血瓶
+      if (Math.random() < 0.2) {
+        game.items.push({ x: nx, y: ny, type: 'hp' });
+      }
+    }
+    game.turn++;
+    moveEnemies();
+    updateHUD();
+    checkDeath();
+    return;
+  }
+  
+  // 移动
+  p.x = nx; p.y = ny;
+  
+  // 捡物品
+  const itemIdx = game.items.findIndex(it => it.x === nx && it.y === ny);
+  if (itemIdx >= 0) {
+    const item = game.items[itemIdx];
+    if (item.type === 'hp') {
+      p.hp = Math.min(p.maxHp, p.hp + 5);
+    } else if (item.type === 'atk') {
+      p.atk += 1;
+    } else if (item.type === 'def') {
+      p.def += 1;
+    } else if (item.type === 'stair') {
+      // 下楼
+      nextFloor();
+      game.turn++;
+      updateHUD();
+      checkDeath();
+      return;
+    }
+    game.items.splice(itemIdx, 1);
+  }
+  
+  game.turn++;
+  moveEnemies();
+  checkDeath();
+  updateHUD();
+}
+
+function checkDeath() {
+  if (!game || !game.running) return;
+  if (game.player.hp <= 0) {
+    game.running = false;
+    document.getElementById('finalFloor').textContent = game.floor;
+    document.getElementById('finalKills').textContent = game.player.kills;
+    document.getElementById('overModal').classList.remove('hide');
+  }
+}
+
+// 敌人攻击玩家（在敌人移动后检查相邻）
+function enemyAttackCheck() {
+  if (!game || !game.running) return;
+  const p = game.player;
+  for (const e of game.enemies) {
+    if (Math.abs(e.x - p.x) + Math.abs(e.y - p.y) === 1) {
+      const dmg = Math.max(1, e.atk - p.def);
+      p.hp -= dmg;
+      if (p.hp <= 0) {
+        p.hp = 0;
+        checkDeath();
+        return;
+      }
+    }
+  }
+  updateHUD();
+}
+
+// ─── 绘制 ───
+function draw() {
+  if (!game) return;
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  const map = game.dungeon.map;
+  const p = game.player;
+  
+  // 绘制地图
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (!isVisible(x, y)) continue;
+      const sx = x * TILE, sy = y * TILE;
+      
+      if (map[y][x] === 0) {
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(sx, sy, TILE, TILE);
+        // 墙壁纹理
+        ctx.fillStyle = '#16213e';
+        ctx.fillRect(sx + 1, sy + 1, TILE - 2, TILE - 2);
+      } else {
+        ctx.fillStyle = '#1a1a20';
+        ctx.fillRect(sx, sy, TILE, TILE);
+        // 地板纹理
+        const noise = (x * 7 + y * 13) % 5 === 0 ? '#1e1e26' : '#1a1a20';
+        ctx.fillStyle = noise;
+        ctx.fillRect(sx, sy, TILE, TILE);
+      }
+      
+      // 网格线
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.strokeRect(sx, sy, TILE, TILE);
+    }
+  }
+  
+  // 绘制物品
+  for (const item of game.items) {
+    if (!isVisible(item.x, item.y)) continue;
+    const sx = item.x * TILE, sy = item.y * TILE;
+    ctx.font = '18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (item.type === 'hp') ctx.fillText('❤️', sx + TILE/2, sy + TILE/2);
+    else if (item.type === 'atk') ctx.fillText('⚔️', sx + TILE/2, sy + TILE/2);
+    else if (item.type === 'def') ctx.fillText('🛡️', sx + TILE/2, sy + TILE/2);
+    else if (item.type === 'stair') ctx.fillText('🔽', sx + TILE/2, sy + TILE/2);
+  }
+  
+  // 绘制敌人
+  for (const e of game.enemies) {
+    if (!isVisible(e.x, e.y)) continue;
+    const sx = e.x * TILE, sy = e.y * TILE;
+    
+    // 血条
+    const hpPct = e.hp / e.maxHp;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(sx + 2, sy - 4, TILE - 4, 3);
+    ctx.fillStyle = hpPct > 0.5 ? '#4caf50' : hpPct > 0.25 ? '#ff9800' : '#f44336';
+    ctx.fillRect(sx + 2, sy - 4, (TILE - 4) * hpPct, 3);
+    
+    ctx.font = '20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(e.symbol, sx + TILE/2, sy + TILE/2);
+  }
+  
+  // 绘制玩家
+  const sx = p.x * TILE, sy = p.y * TILE;
+  // 发光
+  const glow = ctx.createRadialGradient(sx + TILE/2, sy + TILE/2, 2, sx + TILE/2, sy + TILE/2, TILE);
+  glow.addColorStop(0, 'rgba(255,215,0,0.3)');
+  glow.addColorStop(1, 'rgba(255,215,0,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(sx - TILE/2, sy - TILE/2, TILE * 2, TILE * 2);
+  
+  // 玩家身体
+  ctx.fillStyle = '#ffc107';
+  ctx.beginPath();
+  ctx.arc(sx + TILE/2, sy + TILE/2, TILE/2 - 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // 眼睛
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.arc(sx + TILE/2 - 4, sy + TILE/2 - 3, 3, 0, Math.PI * 2);
+  ctx.arc(sx + TILE/2 + 4, sy + TILE/2 - 3, 3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // 胡须
+  ctx.fillStyle = '#e65100';
+  ctx.fillRect(sx + TILE/2 - 1, sy + TILE/2 + 2, 2, 6);
+  
+  // 玩家血条
+  const php = p.hp / p.maxHp;
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(sx, sy - 6, TILE, 4);
+  ctx.fillStyle = php > 0.5 ? '#4caf50' : php > 0.25 ? '#ff9800' : '#f44336';
+  ctx.fillRect(sx, sy - 6, TILE * php, 4);
+  
+  // 视野边缘渐变
+  const grad = ctx.createRadialGradient(
+    sx + TILE/2, sy + TILE/2, game.fov * TILE * 0.6,
+    sx + TILE/2, sy + TILE/2, game.fov * TILE
+  );
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.7)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+// ─── 游戏循环 ───
+function gameLoop() {
+  if (!game) return;
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+// ─── 开始 ───
+function startGame() {
+  document.getElementById('startModal').classList.add('hide');
+  document.getElementById('overModal').classList.add('hide');
+  initGame();
+  gameLoop();
+  document.addEventListener('keydown', handleKey);
+}
+
+// ─── 按键处理 ───
+function handleKey(e) {
+  if (!game || !game.running) return;
+  const keyMap = {
+    'ArrowUp': [0,-1], 'ArrowDown': [0,1], 'ArrowLeft': [-1,0], 'ArrowRight': [1,0],
+    'w': [0,-1], 's': [0,1], 'a': [-1,0], 'd': [1,0],
+    'W': [0,-1], 'S': [0,1], 'A': [-1,0], 'D': [1,0]
+  };
+  const dir = keyMap[e.key];
+  if (dir) {
+    e.preventDefault();
+    const oldHp = game.player.hp;
+    movePlayer(dir[0], dir[1]);
+    // 检查敌人攻击
+    enemyAttackCheck();
+    checkDeath();
+    draw();
+  }
+}
+
+// ─── 触摸/点击移动（手机适配） ───
+let touchStart = null;
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  touchStart = { x: t.clientX, y: t.clientY };
+});
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (!touchStart || !game || !game.running) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStart.x;
+  const dy = t.clientY - touchStart.y;
+  if (Math.abs(dx) < 15 && Math.abs(dy) < 15) return;
+  
+  let moveX = 0, moveY = 0;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    moveX = dx > 0 ? 1 : -1;
+  } else {
+    moveY = dy > 0 ? 1 : -1;
+  }
+  
+  const oldHp = game.player.hp;
+  movePlayer(moveX, moveY);
+  enemyAttackCheck();
+  checkDeath();
+  draw();
+  touchStart = null;
+});
+
+// ─── 事件绑定 ───
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+
+// 初始渲染
+initGame();
+draw();
+</script>
+</body>
+</html>
