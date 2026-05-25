@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>黄文普 - 数学学习</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC",Roboto,"Helvetica Neue",sans-serif;background:#f5f7fa;min-height:100vh;display:flex}
+        .sidebar{width:240px;background:linear-gradient(180deg,#1a237e 0%,#283593 100%);color:#fff;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100}
+        .sidebar-header{padding:28px 24px 20px;border-bottom:1px solid rgba(255,255,255,0.1)}
+        .sidebar-header h2{font-size:20px;font-weight:700;letter-spacing:1px}
+        .sidebar-header p{font-size:13px;opacity:.7;margin-top:4px}
+        #nav-list{list-style:none;padding:16px 12px;flex:1;overflow-y:auto}
+        #nav-list li{padding:14px 20px;margin-bottom:4px;border-radius:12px;cursor:pointer;display:flex;align-items:center;gap:12px;font-size:15px;font-weight:500;transition:all .2s;color:rgba(255,255,255,.75)}
+        #nav-list li i{width:20px;text-align:center;font-size:16px}
+        #nav-list li:hover{background:rgba(255,255,255,.1);color:#fff}
+        #nav-list li.active{background:rgba(255,255,255,.15);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+        .sidebar-footer{padding:16px 24px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;opacity:.5;text-align:center}
+        .main-wrapper{margin-left:240px;flex:1;min-height:100vh;padding:32px 40px;max-width:960px}
+        #main-content{background:#fff;border-radius:16px;padding:40px 48px;box-shadow:0 1px 3px rgba(0,0,0,.06);min-height:calc(100vh - 64px);line-height:1.8}
+        #main-content h1{font-size:28px;font-weight:700;color:#1a237e;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #e8eaf6}
+        #main-content h2{font-size:22px;font-weight:600;color:#283593;margin:32px 0 16px}
+        #main-content h3{font-size:18px;font-weight:600;color:#3949ab;margin:24px 0 12px}
+        #main-content p{margin-bottom:12px;color:#37474f;font-size:16px}
+        #main-content ul,#main-content ol{margin:12px 0 12px 24px;color:#37474f}
+        #main-content li{margin-bottom:8px}
+        #main-content a{color:#3949ab;text-decoration:none;border-bottom:1px dashed #c5cae9}
+        #main-content a:hover{color:#1a237e;border-bottom-color:#3949ab}
+        .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin:24px 0}
+        .card-item{background:#f5f7fa;border-radius:12px;padding:20px;text-align:center;transition:transform .2s}
+        .card-item:hover{transform:translateY(-2px)}
+        .card-item i{font-size:32px;color:#3949ab;margin-bottom:8px}
+        .card-item h4{color:#1a237e;margin-bottom:4px}
+        .card-item p{font-size:13px!important;color:#78909c!important}
+        .formula-box{background:#f5f7fa;border-left:4px solid #3949ab;padding:16px 20px;border-radius:0 8px 8px 0;margin:16px 0;font-size:18px;text-align:center;color:#1a237e}
+        @media(max-width:768px){.sidebar{transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}.main-wrapper{margin-left:0;padding:20px}#main-content{padding:24px 20px}}
+    </style>
+</head>
+<body>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>📐 数学学习</h2>
+            <p>黄文普 · 专属课堂</p>
+        </div>
+        <ul id="nav-list">
+            <li data-page="home" class="active"><i class="fas fa-home"></i> 首页</li>
+            <li data-page="algebra"><i class="fas fa-square-root-variable"></i> 代数专题</li>
+            <li data-page="geometry"><i class="fas fa-draw-polygon"></i> 几何专题</li>
+            <li data-page="calculus"><i class="fas fa-chart-line"></i> 函数专题</li>
+            <li data-page="exercise"><i class="fas fa-pencil-alt"></i> 综合习题</li>
+        </ul>
+        <div class="sidebar-footer">好好学习，天天向上 ✨</div>
+    </div>
+    <div class="main-wrapper">
+        <div id="main-content"></div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <script>
+        const pageData={home:'<h1>📖 黄文普 - 数学学习首页</h1><p>本网站整理各类数学知识点、例题、练习题。</p><p>左侧导航选择对应分类开始学习。</p><div class="card-grid"><div class="card-item"><i class="fas fa-square-root-variable"></i><h4>代数专题</h4><p>整式运算、方程与不等式</p></div><div class="card-item"><i class="fas fa-draw-polygon"></i><h4>几何专题</h4><p>平面几何、立体几何</p></div><div class="card-item"><i class="fas fa-chart-line"></i><h4>函数专题</h4><p>一次、二次、反比例函数</p></div><div class="card-item"><i class="fas fa-pencil-alt"></i><h4>综合习题</h4><p>课后练习、单元测试</p></div></div><p style="color:#78909c;font-size:14px;text-align:center;margin-top:40px;">💪 每天进步一点点，坚持带来大改变！</p>',algebra:'<h1>📊 代数专题</h1><h3>一、整式运算</h3><p><strong>1. 合并同类项</strong></p><p>将同类项的系数相加减，字母和指数不变。</p><p style="margin-top:16px;"><strong>2. 因式分解常用公式</strong></p><div class="formula-box">完全平方公式：$(a \\pm b)^2 = a^2 \\pm 2ab + b^2$</div><div class="formula-box">平方差公式：$a^2 - b^2 = (a+b)(a-b)$</div><div class="formula-box">立方和公式：$a^3 + b^3 = (a+b)(a^2 - ab + b^2)$</div><div class="formula-box">立方差公式：$a^3 - b^3 = (a-b)(a^2 + ab + b^2)$</div><h3 style="margin-top:32px;">二、方程与不等式</h3><ul><li>一元一次方程：$ax + b = 0$</li><li>一元二次方程：$ax^2 + bx + c = 0$，求根公式 $x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$</li><li>二元一次方程组解法：代入法、加减消元法</li></ul>',geometry:'<h1>📐 几何专题</h1><h3>一、平面几何</h3><p><strong>三角形：</strong></p><div class="formula-box">三角形内角和：$\\angle A + \\angle B + \\angle C = 180^\\circ$</div><div class="formula-box">勾股定理：$a^2 + b^2 = c^2$（直角三角形）</div><p style="margin-top:16px;"><strong>圆：</strong></p><div class="formula-box">圆的周长：$C = 2\\pi r$ 　 圆的面积：$S = \\pi r^2$</div><div class="formula-box">弧长公式：$l = \\frac{n\\pi r}{180}$ 　 扇形面积：$S = \\frac{n\\pi r^2}{360}$</div><p style="margin-top:16px;"><strong>四边形性质：</strong></p><ul><li>平行四边形：对边平行且相等，对角相等</li><li>矩形：对角线相等，四个角为直角</li><li>菱形：四边相等，对角线互相垂直</li><li>正方形：矩形 + 菱形的所有性质</li></ul><h3 style="margin-top:32px;">二、立体几何</h3><ul><li>空间位置关系：平行、相交、异面</li><li>体积公式：柱体 $V=Sh$，锥体 $V=\\frac{1}{3}Sh$，球体 $V=\\frac{4}{3}\\pi r^3$</li><li>表面积计算：长方体、圆柱、圆锥、球</li></ul>',calculus:'<h1>📈 函数专题</h1><h3>一、一次函数</h3><div class="formula-box">一般形式：$y = kx + b \\quad (k \\neq 0)$</div><ul><li>$k$ 为斜率，$k > 0$ 时函数递增，$k < 0$ 时函数递减</li><li>$b$ 为截距，即函数与 $y$ 轴交点的纵坐标</li><li>图像为一条直线</li></ul><h3>二、二次函数</h3><div class="formula-box">一般形式：$y = ax^2 + bx + c \\quad (a \\neq 0)$</div><div class="formula-box">顶点式：$y = a(x-h)^2 + k$，顶点坐标 $(h, k)$</div><div class="formula-box">对称轴：$x = -\\frac{b}{2a}$</div><ul><li>$a > 0$ 时开口向上，$a < 0$ 时开口向下</li><li>判别式 $\\Delta = b^2 - 4ac$ 决定与 $x$ 轴的交点个数</li></ul><h3>三、反比例函数</h3><div class="formula-box">一般形式：$y = \\frac{k}{x} \\quad (k \\neq 0)$</div><ul><li>$k > 0$ 时图像在一、三象限</li><li>$k < 0$ 时图像在二、四象限</li><li>图像为双曲线，关于原点对称</li></ul>',exercise:'<h1>📝 综合习题</h1><p>课后练习题、单元测试题汇总。</p><h3>代数练习</h3><ol><li>化简：$3x + 5 - 2x + 7$</li><li>因式分解：$x^2 - 9$</li><li>解方程：$2x + 5 = 13$</li></ol><h3>几何练习</h3><ol><li>已知三角形三边分别为 3、4、5，判断它是什么三角形？</li><li>半径为 5cm 的圆，面积是多少？</li></ol><h3>函数练习</h3><ol><li>已知一次函数 $y = 2x + 1$，求当 $x=3$ 时的 $y$ 值</li><li>二次函数 $y=x^2-4x+3$ 的顶点坐标是什么？</li></ol><p style="color:#78909c;font-size:14px;margin-top:32px;text-align:center;">💡 做完后可以对照知识点检查答案哦</p>'};const navItems=document.querySelectorAll('#nav-list li');const contentBox=document.getElementById('main-content');contentBox.innerHTML=pageData.home;navItems[0].classList.add('active');navItems.forEach(item=>{item.addEventListener('click',()=>{navItems.forEach(li=>li.classList.remove('active'));item.classList.add('active');const page=item.dataset.page;contentBox.innerHTML=pageData[page];if(window.MathJax&&MathJax.typesetPromise){MathJax.typesetPromise()}})});
+    </script>
+</body>
+</html>
